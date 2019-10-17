@@ -89,14 +89,18 @@ local alg_sign = {
    ['HS256'] = mk_hmac_sign_fun('sha256'),
    ['HS384'] = mk_hmac_sign_fun('sha384'),
    ['HS512'] = mk_hmac_sign_fun('sha512'),
-   ['RS256'] = mk_pubkey_sign_fun('sha256')
+   ['RS256'] = mk_pubkey_sign_fun('sha256'),
+   ['RS384'] = mk_pubkey_sign_fun('sha384'),
+   ['RS512'] = mk_pubkey_sign_fun('sha512')
 }
 
 local alg_verify = {
    ['HS256'] = function(data, signature, key) return signature == alg_sign['HS256'](data, key) end,
    ['HS384'] = function(data, signature, key) return signature == alg_sign['HS384'](data, key) end,
    ['HS512'] = function(data, signature, key) return signature == alg_sign['HS512'](data, key) end,
-   ['RS256'] = mk_pubkey_verify_fun('sha256')
+   ['RS256'] = mk_pubkey_verify_fun('sha256'),
+   ['RS384'] = mk_pubkey_verify_fun('sha384'),
+   ['RS512'] = mk_pubkey_verify_fun('sha512')
 }
 
 local function b64_encode(input)

@@ -101,7 +101,7 @@ local function ptest_rsa_jwt(alg)
    log ("KEYSTR=" .. keystr)
    local token, err = jwt.encode(claim, keystr, alg)
    log("Token:", token)
-   assert(token)
+   assert(token, err)
    assert(err == nil)
 
    local validate = true -- validate exp and nbf (default: true)
@@ -112,7 +112,6 @@ local function ptest_rsa_jwt(alg)
    log("Claim:", t2s(decoded) )
 
    log("decode using public key in PEM format")
-   local validate = true -- validate exp and nbf (default: true)
    local decoded, err = jwt.decode(token, tostring(rsa_pub_key), validate)
    assert(decoded, err)
    assert(err == nil)
@@ -129,7 +128,7 @@ local function test_hmac_jwt_all_alg ()
 end
 
 local function test_rsa_jwt_all_alg ()
-   for  _,alg in ipairs{ 'RS256' } do
+   for  _,alg in ipairs{ 'RS256', 'RS384', 'RS512' } do
 	  assert(ptest_rsa_jwt(alg))
    end
 end

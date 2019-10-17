@@ -1,10 +1,10 @@
-luajwt
+luajwtossl
 ===========
 
 JSON Web Tokens for Lua
 
 ```bash
-$ sudo luarocks install --server=http://rocks.moonscript.org luajwt
+$ sudo luarocks install --server=http://rocks.moonscript.org luajwtossl
 ```
 
 ## Usage
@@ -12,7 +12,7 @@ $ sudo luarocks install --server=http://rocks.moonscript.org luajwt
 Basic usage:
 
 ```lua
-local jwt = require "luajwt"
+local jwt = require "luajwtossl"
 
 local key = "example_key"
 
@@ -47,7 +47,7 @@ An openresty/nginx lua jwt auth example:
 # nginx.conf
 location /auth {
 	content_by_lua '
-		local jwt = require "luajwt"
+		local jwt = require "luajwtossl"
 
 		local args = ngx.req.get_uri_args(1)
 

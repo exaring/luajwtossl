@@ -17,7 +17,7 @@ local function t2s(o)
 end
 
 -- 
-local jwt = require "luajwt"
+local jwt = require "luajwtossl"
 
 local key = "example_key"
 

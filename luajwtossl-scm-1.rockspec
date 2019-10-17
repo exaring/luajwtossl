@@ -3,6 +3,7 @@ version = "scm-1"
 
 source = {
 	url = "https://github.com/dudinea/luajwtossl/archive/master.zip",
+	dir = "luajwtossl-master"
 }
 
 description = {

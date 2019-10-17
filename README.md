@@ -3,6 +3,12 @@ luajwtossl
 
 JSON Web Tokens for Lua
 
+
+## Important notice
+
+This is a pre alpha development version, please do not try to use it in production!!! Specifically it 
+contains an unmitifated security vulnerability.
+
 ```bash
 $ sudo luarocks install --server=http://rocks.moonscript.org luajwtossl
 ```

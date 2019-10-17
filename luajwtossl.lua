@@ -1,7 +1,50 @@
 local cjson  = require 'cjson'
 local base64 = require 'base64'
-local hmac = require 'openssl.hmac'
+local hmac   = require 'openssl.hmac'
+local pkey   = require 'openssl.pkey'
+local x509   = require 'openssl.x509'
+local digest = require 'openssl.digest'
 
+local function mkosslobj(fun, str, format)
+   local result, value =  pcall( function ()
+	 return fun(str, format)
+   end)
+   if result then
+      return value, nil
+   else
+      return nil, value
+   end
+end
+
+local function extract_x509_cert(str)
+   return mkosslobj(x509.new, str, "*")
+end
+
+local function extract_privkey(str)
+   return  mkosslobj(pkey.new, str, "*")
+end
+
+local function extract_pubkey(str)
+   local pubkey = mkosslobj(pkey.new, str, "*")
+   if not pubkey then
+      local crt = extract_x509_cert(str);
+      if crt then
+		 pubkey = crt:getPublicKey()
+      end
+   end
+   return pubkey
+end
+
+local function mkdigest(data, alg)
+   local md  = digest.new(alg)
+   assert(md, "failed to create " .. alg .. " message digest")
+   md = md:update(data)
+   -- Note: Do not call md:final here!!
+   -- final() is not idempotent and is being
+   -- called implicitly while performing signature
+   -- or verification
+   return md
+end
 
 local function mk_hmac_sign_fun(alg)
    local fun = function (data, key)
@@ -12,12 +55,6 @@ local function mk_hmac_sign_fun(alg)
    return fun
 end
 
-local alg_sign = {
-   ['HS256'] = mk_hmac_sign_fun('sha256'),
-   ['HS384'] = mk_hmac_sign_fun('sha384'),
-   ['HS512'] = mk_hmac_sign_fun('sha512')
-}
-
 local function mk_hmac_verify_fun(alg)
    local fun = function (data, key)
       local hd = hmac.new(key , alg)
@@ -27,11 +64,39 @@ local function mk_hmac_verify_fun(alg)
    return fun
 end
 
+local function mk_pubkey_sign_fun(alg)
+   return function (data, key)
+	  local priv = extract_privkey(key)
+	  assert(priv, "failed to get private key from provided argument:" ..
+				"must be private key in pem or in der format")
+	  local md  = mkdigest(data, alg)
+	  local signature = priv:sign(md)
+	  return signature
+   end
+end
+
+local function mk_pubkey_verify_fun(alg)
+   return function(data, signature, key)
+	  local pubkey = extract_pubkey(key)
+	  assert(pubkey, "failed to get public key from provided argument:" ..
+				"must be public key or x509 certificate in pem or der formats")
+	  local md  = mkdigest(data, alg)
+	  return  pubkey:verify(signature, md)
+   end
+end
+
+local alg_sign = {
+   ['HS256'] = mk_hmac_sign_fun('sha256'),
+   ['HS384'] = mk_hmac_sign_fun('sha384'),
+   ['HS512'] = mk_hmac_sign_fun('sha512'),
+   ['RS256'] = mk_pubkey_sign_fun('sha256')
+}
 
 local alg_verify = {
    ['HS256'] = function(data, signature, key) return signature == alg_sign['HS256'](data, key) end,
    ['HS384'] = function(data, signature, key) return signature == alg_sign['HS384'](data, key) end,
    ['HS512'] = function(data, signature, key) return signature == alg_sign['HS512'](data, key) end,
+   ['RS256'] = mk_pubkey_verify_fun('sha256')
 }
 
 local function b64_encode(input)

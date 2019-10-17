@@ -1,9 +1,8 @@
 package = "luajwtossl"
-version = "0.1"
+version = "scm-1"
 
 source = {
-	url = "git@github.com:dudinea/luajwt.git",
-	tag = "luajwtossl-0.1"
+	url = "https://github.com/dudinea/luajwtossl/archive/master.zip",
 }
 
 description = {

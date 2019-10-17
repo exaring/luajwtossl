@@ -104,7 +104,14 @@ local function ptest_rsa_jwt(alg)
    assert(token, err)
    assert(err == nil)
 
-   local validate = true -- validate exp and nbf (default: true)
+   local validate = false -- validate exp and nbf (default: true)
+   log("decode w/o validation")
+   local decoded0, err = jwt.decode(token, nil, validate)
+   assert(decoded0, err)
+   assert(err == nil)
+   log("Claim:", t2s(decoded) )
+
+   validate = true
    log("decode using cert in PEM format")
    local decoded, err = jwt.decode(token, tostring(rsa_cert), validate)
    assert(decoded, err)
@@ -116,7 +123,11 @@ local function ptest_rsa_jwt(alg)
    assert(decoded, err)
    assert(err == nil)
    log("Claim:", t2s(decoded) )
-   
+
+   log("decode corrupted token (wrong signature), must fail")
+   local decoded, err = jwt.decode(token .. "M" , tostring(rsa_pub_key), validate)
+   assert("not decoded", "verify should have failed")
+   assert(err == "Invalid signature", err)
    return true
 end
 
@@ -139,5 +150,5 @@ if pcall(debug.getlocal, 4, 1) then
 else
    -- we're at top level, try to run explicitly with logging
    test_hmac_jwt_all_alg()
-   test_rsa_jwt_all_alg ()
+   test_rsa_jwt_all_alg()
 end

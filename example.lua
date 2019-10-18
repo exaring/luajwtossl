@@ -61,12 +61,12 @@ local function gen_test_rsa_cert()
    crt:setBasicConstraintsCritical (true)
    crt: setPublicKey (key)
    crt:sign(key)
-   return tostring(crt), key:toPEM("privateKey"), key:toPEM("publicKey")
+   return tostring(crt), crt:toPEM("DER"), key:toPEM("privateKey"), key:toPEM("publicKey")
 end
 
 
 local hmac_key = "example_key"
-local rsa_cert, rsa_priv_key, rsa_pub_key = gen_test_rsa_cert()
+local rsa_cert, rsa_cert_der, rsa_priv_key, rsa_pub_key = gen_test_rsa_cert()
 
 local claim = {
    iss = "12345678",
@@ -75,11 +75,11 @@ local claim = {
 }
 
 -- test for HMAC digest based tokens
-local function ptest_hmac_jwt(alg)
+local function ptest_hmac_jwt(alg, extra)
    log("alg=".. tostring(alg))
-   local token, err = jwt.encode(claim, hmac_key, alg)
+   local token, err = jwt.encode(claim, hmac_key, alg, extra)
    log("Token:", token)
-   assert(token)
+   assert(token, err)
    assert(err == nil)
    local validate = true -- validate exp and nbf (default: true)
    local decoded, err = jwt.decode(token, hmac_key, validate)
@@ -90,7 +90,7 @@ local function ptest_hmac_jwt(alg)
 end
 
 
-local function ptest_rsa_jwt(alg)
+local function ptest_rsa_jwt(alg, extra)
    log("alg=".. tostring(alg))
    assert(rsa_cert)
    assert(rsa_priv_key)
@@ -99,7 +99,7 @@ local function ptest_rsa_jwt(alg)
    local keystr = rsa_priv_key
    assert(keystr)
    log ("KEYSTR=" .. keystr)
-   local token, err = jwt.encode(claim, keystr, alg)
+   local token, err = jwt.encode(claim, keystr, alg, extra)
    log("Token:", token)
    assert(token, err)
    assert(err == nil)
@@ -128,7 +128,8 @@ local function ptest_rsa_jwt(alg)
    local decoded, err = jwt.decode(token .. "M" , tostring(rsa_pub_key), validate)
    assert("not decoded", "verify should have failed")
    assert(err == "Invalid signature", err)
-   return true
+   
+   return token
 end
 
 local function test_hmac_jwt_all_alg ()
@@ -140,9 +141,59 @@ end
 
 local function test_rsa_jwt_all_alg ()
    for  _,alg in ipairs{ 'RS256', 'RS384', 'RS512' } do
-	  assert(ptest_rsa_jwt(alg))
+	  token = assert(ptest_rsa_jwt(alg))
    end
 end
+
+-- FIXME: should not be here
+local base64 = require("base64")
+local function b64_decode(input)
+   --   input = input:gsub('\n', ''):gsub(' ', '')
+   local reminder = #input % 4
+   if reminder > 0 then
+      local padlen = 4 - reminder
+      input = input .. string.rep('=', padlen)
+   end
+   input = input:gsub('-','+'):gsub('_','/')
+   return base64.decode(input)
+end
+
+
+local function get_header(token)
+   local cjson = require("cjson")
+   print("TOKEN="..token)
+   local part = b64_decode(token:sub(1,token:find(".",1,true) - 1))
+   print("PART="..part)
+   return  cjson.decode(part)
+end
+
+local function test_rsa_jwt_header ()
+   local extra = { header = {typ = "JWT", bar="baz", alg="junk", x5t="" }}
+   token = assert(ptest_rsa_jwt("RS256", extra))
+   header = get_header(token)
+   assert(header.bar == "baz")
+   assert(header.x5t == nil)
+end
+
+
+local function test_rsa_jwt_header_preset_x5t ()
+   local extra = { header = {typ = "JWT", bar="baz", alg="junk", x5t="fooo" }}
+   token = assert(ptest_rsa_jwt("RS256", extra))
+   header = get_header(token)
+   assert(header.bar == "baz")
+   assert(header.x5t == "fooo")
+end
+
+local function test_rsa_jwt_header_compute_x5t ()
+   local extra = { header = {typ = "JWT", bar="baz", alg="junk", x5t="" },
+				   certs = { rsa_cert } }
+   token = assert(ptest_rsa_jwt("RS256", extra))
+   header = get_header(token)
+   assert(header.bar == "baz")
+   assert(header.x5t)
+   assert(header.x5t ~= "")
+end
+
 
 if pcall(debug.getlocal, 4, 1) then
    -- we'running with test framework, disable logging
@@ -151,4 +202,7 @@ else
    -- we're at top level, try to run explicitly with logging
    test_hmac_jwt_all_alg()
    test_rsa_jwt_all_alg()
+   test_rsa_jwt_header()
+   test_rsa_jwt_header_preset_x5t()
+   test_rsa_jwt_header_compute_x5t()
 end

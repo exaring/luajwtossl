@@ -35,6 +35,30 @@ local function extract_pubkey(str)
    return pubkey
 end
 
+local function b64_encode(input)
+   local result = base64.encode(input)
+
+   result = result:gsub('+','-'):gsub('/','_'):gsub('=','')
+
+   return result
+end
+
+local function b64_decode(input)
+   --   input = input:gsub('\n', ''):gsub(' ', '')
+
+   local reminder = #input % 4
+
+   if reminder > 0 then
+      local padlen = 4 - reminder
+      input = input .. string.rep('=', padlen)
+   end
+
+   input = input:gsub('-','+'):gsub('_','/')
+
+   return base64.decode(input)
+end
+
+
 local function mkdigest(data, alg)
    local md  = digest.new(alg)
    assert(md, "failed to create " .. alg .. " message digest")
@@ -103,28 +127,53 @@ local alg_verify = {
    ['RS512'] = mk_pubkey_verify_fun('sha512')
 }
 
-local function b64_encode(input)
-   local result = base64.encode(input)
 
-   result = result:gsub('+','-'):gsub('/','_'):gsub('=','')
-
-   return result
-end
-
-local function b64_decode(input)
-   --   input = input:gsub('\n', ''):gsub(' ', '')
-
-   local reminder = #input % 4
-
-   if reminder > 0 then
-      local padlen = 4 - reminder
-      input = input .. string.rep('=', padlen)
+local function cert_to_der( str )
+   local cert = extract_x509_cert(str)
+   if cert then
+	  return cert:toPEM("DER")
+   else
+	  return nil
    end
-
-   input = input:gsub('-','+'):gsub('_','/')
-
-   return base64.decode(input)
 end
+
+local function mk_cert_hash_fun(digest_alg)
+   return function (extra, alg)
+	  if not extra or not extra.certs or #(extra.certs) == 0 or extra.certs[1] == nil then 
+		 return nil
+	  end
+	  -- FIXME: error handling
+	  local der = cert_to_der(extra.certs[1]);
+	  if der then
+		 local md = mkdigest(der, digest_alg)
+		 return b64_encode(md:final())
+	  else
+		 return nil
+	  end
+   end
+end
+
+local function mk_x5c(extra, alg)
+   local x5c = {}
+   if not extra or not extra.certs then
+	  return nil
+   end
+   for i, cert in ipairs(extra.certs) do
+	  local der = cert_to_der(cert)
+	  -- FIXME: error handling
+	  -- NOTE: the RFC requires plane base64 here 
+	  x5c[i] = base64.encode(der)
+   end
+   return (#x5c > 0 and x5c ) or nil
+end
+
+
+local header_field_func = {
+   ['x5t'] = mk_cert_hash_fun("sha1"),
+   ['x5t#S256'] = mk_cert_hash_fun("sha256"),
+   ['x5c'] = mk_x5c
+}
+
 
 local function tokenize(str, div, len)
    local result, pos = {}, 0
@@ -146,11 +195,37 @@ local function tokenize(str, div, len)
    return result
 end
 
+local function mkheader(extra, alg)
+   local header
+   print("extra=" .. tostring(extra))
+   if extra and extra.header then
+	  if not type(extra.header) == "table" then
+		 return nil, "extra.header parameter must be a table"
+	  end
+	  header = {}
+	  for k,v in pairs(extra.header) do
+		 if v ~= "" then
+			header[k] = v
+		 elseif header_field_func[k] then
+			local val = header_field_func[k](extra, alg)
+			if (val) then
+			   header[k] = val
+			end
+		 end
+	  end
+	  header.alg = alg
+   else
+	  header = { typ='JWT', alg=alg }
+   end
+   return header
+end
+
 local M = {}
 
-function M.encode(data, key, alg)
+function M.encode(data, key, alg, extra)
    if type(data) ~= 'table' then return nil, "Argument #1 must be table" end
    if type(key) ~= 'string' then return nil, "Argument #2 must be string" end
+   if extra and type(extra) ~= 'table' then return nil, "Argument #4 must be nil or table" end
 
    alg = alg or "HS256" 
 
@@ -158,8 +233,11 @@ function M.encode(data, key, alg)
       return nil, "Algorithm not supported"
    end
 
-   local header = { typ='JWT', alg=alg }
-
+   local header,err  = mkheader(extra, alg)
+   if not header then
+	  return nil, err
+   end
+   
    local segments = {
       b64_encode(cjson.encode(header)),
       b64_encode(cjson.encode(data))

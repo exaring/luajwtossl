@@ -1,7 +1,4 @@
-#!/usr/bin/env lua
--- This file can by run with lua or with testy.lua.
---
--- Module usage examples see below in ptest_*() functions.
+-- require 'busted.runner'()
 
 local pkey    = require "openssl.pkey"
 local x509    = require "openssl.x509"
@@ -13,6 +10,13 @@ local base64  = require "base64"
 local utl     = require "luajwtossl.utils"
 
 local log = print
+local standalone = true
+
+if pcall(debug.getlocal, 4, 1) then
+   -- we'running with test framework, disable logging
+   log = function (x) end
+   standalone = false
+end
 
 local function t2s(o)
    if type(o) == 'table' then
@@ -134,19 +138,6 @@ local function ptest_rsa_jwt(alg, extra)
    return token
 end
 
-local function test_hmac_jwt_all_alg ()
-   local algs = { 'HS256', 'HS384', 'HS512' }
-   for  _,alg in ipairs(algs) do
-	  assert(ptest_hmac_jwt(alg))
-   end
-end
-
-local function test_rsa_jwt_all_alg ()
-   for  _,alg in ipairs{ 'RS256', 'RS384', 'RS512' } do
-	  token = assert(ptest_rsa_jwt(alg))
-   end
-end
-
 local function get_header(token)
    local cjson = require("cjson")
    log("TOKEN="..token)
@@ -155,42 +146,63 @@ local function get_header(token)
    return  cjson.decode(part)
 end
 
-local function test_rsa_jwt_header ()
-   local extra = { header = {typ = "JWT", bar="baz", alg="junk", x5t="" }}
-   token = assert(ptest_rsa_jwt("RS256", extra))
-   header = get_header(token)
-   assert(header.bar == "baz")
-   assert(header.x5t == nil)
+if (standalone) then
+   -- simple busted emulator, we do not use many features
+   it = function(desc, test_fun)
+	  print("\n** RUNNING TEST: "..desc)
+	  test_fun()
+   end
+   describe = function (desc, tests_fun)
+	  print("\n* RUNNING TESTS GROUP: ".. desc)
+	  tests_fun()
+   end
 end
 
 
-local function test_rsa_jwt_header_preset_x5t ()
-   local extra = { header = {typ = "JWT", bar="baz", alg="junk", x5t="fooo" }}
-   token = assert(ptest_rsa_jwt("RS256", extra))
-   header = get_header(token)
-   assert(header.bar == "baz")
-   assert(header.x5t == "fooo")
-end
 
-local function test_rsa_jwt_header_compute_x5t ()
-   local extra = { header = {typ = "JWT", bar="baz", alg="junk", x5t="" },
-				   certs = { rsa_cert } }
-   token = assert(ptest_rsa_jwt("RS256", extra))
-   header = get_header(token)
-   assert(header.bar == "baz")
-   assert(header.x5t)
-   assert(header.x5t ~= "")
-end
+describe("test JWT encoding/decoding",
+		 function()
+			it("test hmac jwt", function()
+				  local algs = { 'HS256', 'HS384', 'HS512' }
+				  for  _,alg in ipairs(algs) do
+					 assert(ptest_hmac_jwt(alg))
+				  end
+				  -- assert.is_truthy(1) -- mymodule is still loaded
+				  -- assert.is_true(true)               -- _G.myglobal is still set
+				  -- assert.is_equal("a","a")
+			end)
+			
+			it("test RSA jwt", function() 
+				  for  _,alg in ipairs{ 'RS256', 'RS384', 'RS512' } do
+					 token = assert(ptest_rsa_jwt(alg))
+				  end
+			end)
+end)
 
+describe("test JWT header fields handling/generation in encoder",
+		 function()
+			it("test header fields specification", function()
+				     local extra = { header = {typ = "JWT", bar="baz", alg="junk", x5t="" }}
+					 token = assert(ptest_rsa_jwt("RS256", extra))
+					 header = get_header(token)
+					 assert(header.bar == "baz")
+					 assert(header.x5t == nil)
+			end)
+			it("test x5t pass-through", function()
+				  local extra = { header = {typ = "JWT", bar="baz", alg="junk", x5t="fooo" }}
+				  token = assert(ptest_rsa_jwt("RS256", extra))
+				  header = get_header(token)
+				  assert(header.bar == "baz")
+				  assert(header.x5t == "fooo")
+			end)
+			it("test x5t computation", function()
+				  local extra = { header = {typ = "JWT", bar="baz", alg="junk", x5t="" },
+								  certs = { rsa_cert } }
+				  token = assert(ptest_rsa_jwt("RS256", extra))
+				  header = get_header(token)
+				  assert(header.bar == "baz")
+				  assert(header.x5t)
+				  assert(header.x5t ~= "")
+			end)
+end)
 
-if pcall(debug.getlocal, 4, 1) then
-   -- we'running with test framework, disable logging
-   log = function (x) end
-else
-   -- we're at top level, try to run explicitly with logging
-   test_hmac_jwt_all_alg()
-   test_rsa_jwt_all_alg()
-   test_rsa_jwt_header()
-   test_rsa_jwt_header_preset_x5t()
-   test_rsa_jwt_header_compute_x5t()
-end

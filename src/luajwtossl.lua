@@ -4,71 +4,7 @@ local hmac   = require 'openssl.hmac'
 local pkey   = require 'openssl.pkey'
 local x509   = require 'openssl.x509'
 local digest = require 'openssl.digest'
-
-local function mkosslobj(fun, str, format)
-   local result, value =  pcall( function ()
-	 return fun(str, format)
-   end)
-   if result then
-      return value, nil
-   else
-      return nil, value
-   end
-end
-
-local function extract_x509_cert(str)
-   return mkosslobj(x509.new, str, "*")
-end
-
-local function extract_privkey(str)
-   return  mkosslobj(pkey.new, str, "*")
-end
-
-local function extract_pubkey(str)
-   local pubkey = mkosslobj(pkey.new, str, "*")
-   if not pubkey then
-      local crt = extract_x509_cert(str);
-      if crt then
-		 pubkey = crt:getPublicKey()
-      end
-   end
-   return pubkey
-end
-
-local function b64_encode(input)
-   local result = base64.encode(input)
-
-   result = result:gsub('+','-'):gsub('/','_'):gsub('=','')
-
-   return result
-end
-
-local function b64_decode(input)
-   --   input = input:gsub('\n', ''):gsub(' ', '')
-
-   local reminder = #input % 4
-
-   if reminder > 0 then
-      local padlen = 4 - reminder
-      input = input .. string.rep('=', padlen)
-   end
-
-   input = input:gsub('-','+'):gsub('_','/')
-
-   return base64.decode(input)
-end
-
-
-local function mkdigest(data, alg)
-   local md  = digest.new(alg)
-   assert(md, "failed to create " .. alg .. " message digest")
-   md = md:update(data)
-   -- Note: Do not call md:final here!!
-   -- final() is not idempotent and is being
-   -- called implicitly while performing signature
-   -- or verification
-   return md
-end
+local utl    = require 'luajwtossl.utils'
 
 local function mk_hmac_sign_fun(alg)
    local fun = function (data, key)
@@ -90,10 +26,10 @@ end
 
 local function mk_pubkey_sign_fun(alg)
    return function (data, key)
-	  local priv = extract_privkey(key)
+	  local priv = utl.extract_privkey(key)
 	  assert(priv, "failed to get private key from provided argument:" ..
 				"must be private key in pem or in der format")
-	  local md  = mkdigest(data, alg)
+	  local md  = utl.mkdigest(data, alg)
 	  local signature = priv:sign(md)
 	  return signature
    end
@@ -101,10 +37,10 @@ end
 
 local function mk_pubkey_verify_fun(alg)
    return function(data, signature, key)
-	  local pubkey = extract_pubkey(key)
+	  local pubkey = utl.extract_pubkey(key)
 	  assert(pubkey, "failed to get public key from provided argument:" ..
 				"must be public key or x509 certificate in pem or der formats")
-	  local md  = mkdigest(data, alg)
+	  local md  = utl.mkdigest(data, alg)
 	  return  pubkey:verify(signature, md)
    end
 end
@@ -127,26 +63,16 @@ local alg_verify = {
    ['RS512'] = mk_pubkey_verify_fun('sha512')
 }
 
-
-local function cert_to_der( str )
-   local cert = extract_x509_cert(str)
-   if cert then
-	  return cert:toPEM("DER")
-   else
-	  return nil
-   end
-end
-
 local function mk_cert_hash_fun(digest_alg)
    return function (extra, alg)
 	  if not extra or not extra.certs or #(extra.certs) == 0 or extra.certs[1] == nil then 
 		 return nil
 	  end
 	  -- FIXME: error handling
-	  local der = cert_to_der(extra.certs[1]);
+	  local der = utl.cert_to_der(extra.certs[1]);
 	  if der then
-		 local md = mkdigest(der, digest_alg)
-		 return b64_encode(md:final())
+		 local md = utl.mkdigest(der, digest_alg)
+		 return utl.b64urlencode(md:final())
 	  else
 		 return nil
 	  end
@@ -159,7 +85,7 @@ local function mk_x5c(extra, alg)
 	  return nil
    end
    for i, cert in ipairs(extra.certs) do
-	  local der = cert_to_der(cert)
+	  local der = utl.cert_to_der(cert)
 	  -- FIXME: error handling
 	  -- NOTE: the RFC requires plane base64 here 
 	  x5c[i] = base64.encode(der)
@@ -173,27 +99,6 @@ local header_field_func = {
    ['x5t#S256'] = mk_cert_hash_fun("sha256"),
    ['x5c'] = mk_x5c
 }
-
-
-local function tokenize(str, div, len)
-   local result, pos = {}, 0
-
-   for st, sp in function() return str:find(div, pos, true) end do
-
-      result[#result + 1] = str:sub(pos, st-1)
-      pos = sp + 1
-
-      len = len - 1
-
-      if len <= 1 then
-         break
-      end
-   end
-
-   result[#result + 1] = str:sub(pos)
-
-   return result
-end
 
 local function mkheader(extra, alg)
    local header
@@ -239,15 +144,15 @@ function M.encode(data, key, alg, extra)
    end
    
    local segments = {
-      b64_encode(cjson.encode(header)),
-      b64_encode(cjson.encode(data))
+      utl.b64urlencode(cjson.encode(header)),
+      utl.b64urlencode(cjson.encode(data))
    }
 
    local signing_input = table.concat(segments, ".")
 
    local signature = alg_sign[alg](signing_input, key)
 
-   segments[#segments+1] = b64_encode(signature)
+   segments[#segments+1] = utl.b64urlencode(signature)
 
    return table.concat(segments, ".")
 end
@@ -257,7 +162,7 @@ function M.decode(data, key, verify)
    if type(data) ~= 'string' then return nil, "Argument #1 must be string" end
    if verify and type(key) ~= 'string' then return nil, "Argument #2 must be string" end
 
-   local token = tokenize(data, '.', 3)
+   local token = utl.tokenize(data, '.', 3)
 
    if #token ~= 3 then
       return nil, "Invalid token"
@@ -266,10 +171,9 @@ function M.decode(data, key, verify)
    local headerb64, bodyb64, sigb64 = token[1], token[2], token[3]
 
    local ok, header, body, sig = pcall(function ()
-
-         return cjson.decode(b64_decode(headerb64)), 
-         cjson.decode(b64_decode(bodyb64)),
-         b64_decode(sigb64)
+         return cjson.decode(utl.b64urldecode(headerb64)), 
+         cjson.decode(utl.b64urldecode(bodyb64)),
+         utl.b64urldecode(sigb64)
    end) 
 
    if not ok then

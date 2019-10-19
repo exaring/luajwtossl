@@ -24,6 +24,7 @@ dependencies = {
 build = {
 	type = "builtin",
 	modules = {
-		luajwtossl = "src/luajwtossl.lua"
+		luajwtossl = "src/luajwtossl.lua",
+		['luajwtossl.utils'] = "src/luajwtossl.utils.lua"
 	}
 }

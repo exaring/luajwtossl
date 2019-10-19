@@ -102,7 +102,6 @@ local header_field_func = {
 
 local function mkheader(extra, alg)
    local header
-   print("extra=" .. tostring(extra))
    if extra and extra.header then
 	  if not type(extra.header) == "table" then
 		 return nil, "extra.header parameter must be a table"

@@ -7,10 +7,10 @@ local pkey    = require "openssl.pkey"
 local x509    = require "openssl.x509"
 local name    = require "openssl.x509.name"
 local altname = require "openssl.x509.altname"
-local x509    = require 'openssl.x509'
+local x509    = require "openssl.x509"
 local jwt     = require "luajwtossl"
-local base64  = require("base64")
-local utl     = require 'luajwtossl.utils'
+local base64  = require "base64"
+local utl     = require "luajwtossl.utils"
 
 local log = print
 
@@ -149,9 +149,9 @@ end
 
 local function get_header(token)
    local cjson = require("cjson")
-   print("TOKEN="..token)
+   log("TOKEN="..token)
    local part = utl.b64urldecode(token:sub(1,token:find(".",1,true) - 1))
-   print("PART="..part)
+   log("PART="..part)
    return  cjson.decode(part)
 end
 

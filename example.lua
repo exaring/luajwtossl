@@ -9,6 +9,8 @@ local name    = require "openssl.x509.name"
 local altname = require "openssl.x509.altname"
 local x509    = require 'openssl.x509'
 local jwt     = require "luajwtossl"
+local base64  = require("base64")
+local utl     = require 'luajwtossl.utils'
 
 local log = print
 
@@ -145,24 +147,10 @@ local function test_rsa_jwt_all_alg ()
    end
 end
 
--- FIXME: should not be here
-local base64 = require("base64")
-local function b64_decode(input)
-   --   input = input:gsub('\n', ''):gsub(' ', '')
-   local reminder = #input % 4
-   if reminder > 0 then
-      local padlen = 4 - reminder
-      input = input .. string.rep('=', padlen)
-   end
-   input = input:gsub('-','+'):gsub('_','/')
-   return base64.decode(input)
-end
-
-
 local function get_header(token)
    local cjson = require("cjson")
    print("TOKEN="..token)
-   local part = b64_decode(token:sub(1,token:find(".",1,true) - 1))
+   local part = utl.b64urldecode(token:sub(1,token:find(".",1,true) - 1))
    print("PART="..part)
    return  cjson.decode(part)
 end

@@ -14,10 +14,14 @@ description = {
 }
 
 -- FIXME: try lower versions of lua and luaossl
+-- FIXME: downgraded to lua-cjson 2.1.0-1
+--        2.1.0.6-1 needs lua_objlen (is is said
+--        that is lua needs to be built with  -DLUA_COMPAT_5_1 for later
+--        versions to work )
 dependencies = {
 	"lua >= 5.3",
 	"luaossl >= 20190731-0",
-	"lua-cjson >= 2.1.0.6-1",
+	"lua-cjson = 2.1.0-1",	
 	"lbase64 >= 20120807-3"
 }
 

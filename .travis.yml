@@ -15,7 +15,7 @@ before_install:
 
 
 install:
-  - luarocks --verbose make --local
+  - luarocks make --local
 
 script:
   - luarocks --verbose test

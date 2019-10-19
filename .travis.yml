@@ -7,9 +7,10 @@ env:
 #  - LUA="luajit=2.0"
 #  - LUA="luajit=2.1"
 
+
 before_install:
   - pip install hererocks
-  - hererocks lua_install -r^ --$LUA
+  - hererocks lua_install -r3.2.0 --$LUA
   - export PATH=$PATH:$PWD/lua_install/bin
 
 

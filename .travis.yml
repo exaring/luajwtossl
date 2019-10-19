@@ -22,7 +22,7 @@ script:
 
 notifications:
   email:
-    recipients:
-      - eugene.d@trekflow.com
-    on_success: never # default: change
+#    recipients:
+#      - x@y
+    on_success: always # default: change
     on_failure: always # default: always

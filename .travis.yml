@@ -10,7 +10,7 @@ env:
 
 before_install:
   - pip install hererocks
-  - hererocks lua_install -r3.2.0 --$LUA
+  - hererocks lua_install -r3 --$LUA
   - export PATH=$PATH:$PWD/lua_install/bin
 
 

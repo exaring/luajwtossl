@@ -12,6 +12,7 @@ contains an unmitigated security vulnerability.
 ```bash
 $ sudo luarocks install --server=http://rocks.moonscript.org luajwtossl
 ```
+## Master branch build status: ![build status](https://travis-ci.org/dudinea/luajwtossl.svg?branch=master)
 
 ## Usage
 

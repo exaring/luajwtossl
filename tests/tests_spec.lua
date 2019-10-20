@@ -80,6 +80,23 @@ local claim = {
    exp = os.time() + 3600,
 }
 
+-- test for unencrypted tokens
+local function ptest_none_jwt(extra)
+   local alg = 'none'
+   log("alg=".. tostring(alg))
+   local token, err = jwt.encode(claim, nil, alg, extra)
+   log("Token:", token)
+   assert(token, err)
+   assert(err == nil)
+   local validate = true -- validate exp and nbf (default: true)
+   local decoded, err = jwt.decode(token, nil, validate)
+   assert(decoded, err)
+   assert(err == nil)
+   log("Claim:", t2s(decoded) )
+   return true
+end
+
+
 -- test for HMAC digest based tokens
 local function ptest_hmac_jwt(alg, extra)
    log("alg=".. tostring(alg))
@@ -89,7 +106,7 @@ local function ptest_hmac_jwt(alg, extra)
    assert(err == nil)
    local validate = true -- validate exp and nbf (default: true)
    local decoded, err = jwt.decode(token, hmac_key, validate)
-   assert(decoded)
+   assert(decoded,err)
    assert(err == nil)
    log("Claim:", t2s(decoded) )
    return true
@@ -162,14 +179,14 @@ end
 
 describe("test JWT encoding/decoding",
 		 function()
+			it("test unencrypted jwt", function()
+				  assert(ptest_none_jwt())
+			end)
 			it("test hmac jwt", function()
 				  local algs = { 'HS256', 'HS384', 'HS512' }
 				  for  _,alg in ipairs(algs) do
 					 assert(ptest_hmac_jwt(alg))
 				  end
-				  -- assert.is_truthy(1) -- mymodule is still loaded
-				  -- assert.is_true(true)               -- _G.myglobal is still set
-				  -- assert.is_equal("a","a")
 			end)
 			
 			it("test RSA jwt", function() 

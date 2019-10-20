@@ -51,7 +51,8 @@ local alg_sign = {
    ['HS512'] = mk_hmac_sign_fun('sha512'),
    ['RS256'] = mk_pubkey_sign_fun('sha256'),
    ['RS384'] = mk_pubkey_sign_fun('sha384'),
-   ['RS512'] = mk_pubkey_sign_fun('sha512')
+   ['RS512'] = mk_pubkey_sign_fun('sha512'),
+   ['none' ] = function (data, key) return "" end
 }
 
 local alg_verify = {
@@ -60,7 +61,8 @@ local alg_verify = {
    ['HS512'] = function(data, signature, key) return signature == alg_sign['HS512'](data, key) end,
    ['RS256'] = mk_pubkey_verify_fun('sha256'),
    ['RS384'] = mk_pubkey_verify_fun('sha384'),
-   ['RS512'] = mk_pubkey_verify_fun('sha512')
+   ['RS512'] = mk_pubkey_verify_fun('sha512'),
+   ['none' ] = function(data, signature, key) return signature == "" end
 }
 
 local function mk_cert_hash_fun(digest_alg)
@@ -127,11 +129,11 @@ end
 local M = {}
 
 function M.encode(data, key, alg, extra)
+   alg = alg or "HS256" 
    if type(data) ~= 'table' then return nil, "Argument #1 must be table" end
-   if type(key) ~= 'string' then return nil, "Argument #2 must be string" end
+   if alg ~= 'none' and type(key) ~= 'string' then return nil, "Argument #2 must be string" end
    if extra and type(extra) ~= 'table' then return nil, "Argument #4 must be nil or table" end
 
-   alg = alg or "HS256" 
 
    if not alg_sign[alg] then
       return nil, "Algorithm not supported"
@@ -159,7 +161,6 @@ end
 function M.decode(data, key, verify)
    if key and verify == nil then verify = true end
    if type(data) ~= 'string' then return nil, "Argument #1 must be string" end
-   if verify and type(key) ~= 'string' then return nil, "Argument #2 must be string" end
 
    local token = utl.tokenize(data, '.', 3)
 
@@ -188,6 +189,8 @@ function M.decode(data, key, verify)
       if not header.alg or type(header.alg) ~= "string" then
          return nil, "Invalid alg"
       end
+
+	  if verify and header.alg ~= 'none' and type(key) ~= 'string' then return nil, "Argument #2 must be string" end
 
       if body.exp and type(body.exp) ~= "number" then
          return nil, "exp must be number"

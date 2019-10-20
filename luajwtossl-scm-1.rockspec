@@ -19,7 +19,7 @@ description = {
 --        that is lua needs to be built with  -DLUA_COMPAT_5_1 for later
 --        versions to work )
 dependencies = {
-	"lua >= 5.3",
+	"lua >= 5.2",
 	"luaossl >= 20190731-0",
 	"lua-cjson = 2.1.0-1",	
 	"lbase64 >= 20120807-3"

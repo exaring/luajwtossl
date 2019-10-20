@@ -158,6 +158,32 @@ function M.encode(data, key, alg, extra)
    return table.concat(segments, ".")
 end
 
+function get_keystr(alg, header, key)
+   if type(key) == "string" then
+	  return key, nil
+   end
+   if type(key) == "function" then
+	  local is_ok, keystr, err =	 pcall(function() return key(alg, header) end)
+	  if is_ok then
+		 if keystr then
+			if type(keystr)=='string' then
+			   return keystr, nil
+			else
+			   return nil, "Key fetch function returned invalid key of type "..type(keystr)
+			end
+		 else
+			return nil, "Key fetch function returned error: "..tostring(err)
+		 end
+	  else
+		 return nil, "Key fetch function failed: "..tostring(keystr)
+	  end
+   end
+   if alg == 'none' then
+	  return "",nil
+   end
+   return nil, "Invalid key argument, must be string or function"
+end
+
 function M.decode(data, key, verify)
    if key and verify == nil then verify = true end
    if type(data) ~= 'string' then return nil, "Argument #1 must be string" end
@@ -190,7 +216,10 @@ function M.decode(data, key, verify)
          return nil, "Invalid alg"
       end
 
-	  if verify and header.alg ~= 'none' and type(key) ~= 'string' then return nil, "Argument #2 must be string" end
+	  local keystr, err = get_keystr(header.alg, header, key)
+	  if err then
+		 return nil, err
+	  end
 
       if body.exp and type(body.exp) ~= "number" then
          return nil, "exp must be number"
@@ -204,7 +233,7 @@ function M.decode(data, key, verify)
          return nil, "Algorithm not supported"
       end
 
-      if not alg_verify[header.alg](headerb64 .. "." .. bodyb64, sig, key) then
+      if not alg_verify[header.alg](headerb64 .. "." .. bodyb64, sig, keystr) then
          return nil, "Invalid signature"
       end
 

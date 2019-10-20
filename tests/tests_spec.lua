@@ -104,11 +104,61 @@ local function ptest_hmac_jwt(alg, extra)
    log("Token:", token)
    assert(token, err)
    assert(err == nil)
-   local validate = true -- validate exp and nbf (default: true)
+
+   local validate = false
+   log("decode without validation")
+   local decoded, err = jwt.decode(token, nil, false)
+   assert(decoded,err)
+   assert(err == nil)
+   log("Claim:", t2s(decoded) )
+
+   validate = true
+   log("decode using secret key")
    local decoded, err = jwt.decode(token, hmac_key, validate)
    assert(decoded,err)
    assert(err == nil)
    log("Claim:", t2s(decoded) )
+
+   log("decode using function to fetch secret key")
+   local decoded, err = jwt.decode(token,
+								   function(token_alg, header)
+									  assert(header, "header must be provided")
+									  assert(token_alg == alg, "invalid alg requested: "..tostring(alg))
+									  return  tostring(hmac_key)
+								   end, validate)
+   return true
+end
+
+
+
+-- test fetch function error handling
+local function ptest_fetch_error_handling()
+   local alg = "HS256"
+   local token, err = jwt.encode(claim, hmac_key, alg)
+   log("Token:", token)
+   assert(token, err)
+   assert(err == nil)
+
+   local validate = false
+   log("decode without validation")
+   local decoded, err = jwt.decode(token, function () error("must not be called") end, false)
+   assert(decoded,err)
+   assert(err == nil)
+   log("Claim:", t2s(decoded) )
+
+   validate = true
+   log("fetch function returns error")
+   local decoded, err = jwt.decode(token, function() return nil, "err1" end, validate)
+   assert(not decoded)
+   assert(err)
+   assert(err:find("err1",1,true))
+
+   log("fetch function faild")
+   local decoded, err = jwt.decode(token, function() error("err2") end, validate)
+   assert(not decoded)
+   assert(err)
+   assert(err:find("err2",1,true))
+
    return true
 end
 
@@ -143,6 +193,17 @@ local function ptest_rsa_jwt(alg, extra)
 
    log("decode using public key in PEM format")
    local decoded, err = jwt.decode(token, tostring(rsa_pub_key), validate)
+   assert(decoded, err)
+   assert(err == nil)
+   log("Claim:", t2s(decoded) )
+
+   log("decode using function to fetch public key in PEM format")
+   local decoded, err = jwt.decode(token,
+								   function(token_alg, header)
+									  assert(header, "header must be provided")
+									  assert(token_alg == alg, "invalid alg requested: "..tostring(alg))
+									  return  tostring(rsa_pub_key)
+								   end, validate)
    assert(decoded, err)
    assert(err == nil)
    log("Claim:", t2s(decoded) )

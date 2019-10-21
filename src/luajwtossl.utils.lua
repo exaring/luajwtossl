@@ -49,7 +49,7 @@ end
 local function cert_to_der( str )
    local cert = extract_x509_cert(str)
    if cert then
-	  return cert:toPEM("DER")
+	  return cert:tostring("DER")
    else
 	  return nil
    end

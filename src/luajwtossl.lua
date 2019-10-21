@@ -152,50 +152,72 @@ local function get_keystr(alg, header, key)
    return nil, "Invalid key argument, must be string or function"
 end
 
--- the following functions are exported
 
-local function encode(data, key, alg, extra)
-   alg = alg or "HS256" 
-   if type(data) ~= 'table' then return nil, "Argument #1 must be table" end
-   if alg ~= 'none' and type(key) ~= 'string' then return nil, "Argument #2 must be string" end
-   if extra and type(extra) ~= 'table' then return nil, "Argument #4 must be nil or table" end
+local function new(config)
+   local false_fun = function () return false end
 
+   local is_alg_allowed = false_fun
 
-   if not alg_sign[alg] then
-      return nil, "Algorithm not supported"
-   end
-
-   local header,err  = mkheader(extra, alg)
-   if not header then
-	  return nil, err
+   if config then
+	  local allow_algs = config.allow_algs
+	  if type(allow_algs) == 'function' then
+		 is_alg_allowed = allow_algs
+	  elseif type(allow_algs) == 'table' then
+		 is_alg_allowed = function(alg)
+			return allow_algs[alg]
+		 end
+	  elseif type(allow_algs) == 'string' then
+		 is_alg_allowed = function(alg)
+			return string.match(alg, allow_args)
+		 end
+	  end
    end
    
-   local segments = {
-      utl.b64urlencode(cjson.encode(header)),
-      utl.b64urlencode(cjson.encode(data))
-   }
+   -- the following functions are exported
+   local function encode(data, key, alg, extra)
+	  alg = alg or "HS256"
+	  if type(data) ~= 'table' then return nil, "Argument #1 must be table" end
+	  if alg ~= 'none' and type(key) ~= 'string' then return nil, "Argument #2 must be string" end
+	  if extra and type(extra) ~= 'table' then return nil, "Argument #4 must be nil or table" end
 
-   local signing_input = table.concat(segments, ".")
 
-   local signature = alg_sign[alg](signing_input, key)
+	  if not alg_sign[alg] then
+		 return nil, "Algorithm not supported"
+	  end
 
-   segments[#segments+1] = utl.b64urlencode(signature)
+	  local header,err  = mkheader(extra, alg)
+	  if not header then
+		 return nil, err
+	  end
 
-   return table.concat(segments, ".")
-end
+	  local segments = {
+		 utl.b64urlencode(cjson.encode(header)),
+		 utl.b64urlencode(cjson.encode(data))
+	  }
 
--- Parse JWT token
--- @param  JWT token - in case of failure the parts that has been
---                     successfully parsed get returned anyway
--- @return err - error message, nil on success
---         header body signature - decoded from base64
---         h64    b64  sig64     - those not decoded decoded
-local function parse(data)
-   local parts = utl.tokenize(data, '.', 3)
-   local headerb64, bodyb64, sigb64 = parts[1], parts[2], parts[3]
-   local err, ok, header, body, sig
-   
-   if #parts == 3 then
+	  local signing_input = table.concat(segments, ".")
+
+	  local signature = alg_sign[alg](signing_input, key)
+
+	  segments[#segments+1] = utl.b64urlencode(signature)
+
+	  return table.concat(segments, ".")
+   end
+
+
+
+   -- Parse JWT token
+   -- @param  JWT token - in case of failure the parts that has been
+   --                     successfully parsed get returned anyway
+   -- @return err - error message, nil on success
+   --         header body signature - decoded from base64
+   --         h64    b64  sig64     - those not decoded decoded
+   local function parse(data)
+	  local parts = utl.tokenize(data, '.', 3)
+	  local headerb64, bodyb64, sigb64 = parts[1], parts[2], parts[3]
+	  local err, ok, header, body, sig
+
+	  if #parts == 3 then
 		 ok, header, body, sig = pcall(function ()
 			   return cjson.decode(utl.b64urldecode(headerb64)), 
 			   cjson.decode(utl.b64urldecode(bodyb64)),
@@ -204,68 +226,77 @@ local function parse(data)
 		 if not ok then
 			err = "invalid json"
 		 end		 
-   else
-	  err = "token must contain three parts"
-   end
-   
-   return err,  header, body, sig,  headerb64, bodyb64, sigb64
-end   
-   
-
-function decode(data, key, verify)
-   if key and verify == nil then verify = true end
-   if type(data) ~= 'string' then return nil, "Argument #1 must be string" end
-
-   local err, header, body, sig, headerb64, bodyb64, sigb64 = parse(data)
-   if err then
-      return nil, "JWT token parse error: " .. err
-   end
-
-   if verify then
-
-      if not header.typ or header.typ ~= "JWT" then
-         return nil, "Invalid typ"
-      end
-
-      if not header.alg or type(header.alg) ~= "string" then
-         return nil, "Invalid alg"
-      end
-
-	  local keystr, err = get_keystr(header.alg, header, key)
-	  if err then
-		 return nil, err
+	  else
+		 err = "token must contain three parts"
 	  end
 
-      if body.exp and type(body.exp) ~= "number" then
-         return nil, "exp must be number"
-      end
-
-      if body.nbf and type(body.nbf) ~= "number" then
-         return nil, "nbf must be number"
-      end
-
-      if not alg_verify[header.alg] then
-         return nil, "Algorithm not supported"
-      end
-
-      if not alg_verify[header.alg](headerb64 .. "." .. bodyb64, sig, keystr) then
-         return nil, "Invalid signature"
-      end
-
-      if body.exp and os.time() >= body.exp then
-         return nil, "Not acceptable by exp"
-      end
-
-      if body.nbf and os.time() < body.nbf then
-         return nil, "Not acceptable by nbf"
-      end
+	  return err,  header, body, sig,  headerb64, bodyb64, sigb64
    end
+   
 
-   return body
-end
+   function decode(data, key, verify)
+	  if key and verify == nil then verify = true end
+	  if type(data) ~= 'string' then return nil, "Argument #1 must be string" end
+
+	  local err, header, body, sig, headerb64, bodyb64, sigb64 = parse(data)
+	  if err then
+		 return nil, "JWT token parse error: " .. err
+	  end
+
+	  if verify then
+
+		 if not header.typ or header.typ ~= "JWT" then
+			return nil, "Invalid typ"
+		 end
+
+		 if not header.alg or type(header.alg) ~= "string" then
+			return nil, "Invalid alg"
+		 end
+
+		 if not is_alg_allowed(header.alg, header) then
+			return nil, "Algorithm not allowed"
+		 end
+
+		 local keystr, err = get_keystr(header.alg, header, key)
+		 if err then
+			return nil, err
+		 end
+
+		 if body.exp and type(body.exp) ~= "number" then
+			return nil, "exp must be number"
+		 end
+
+		 if body.nbf and type(body.nbf) ~= "number" then
+			return nil, "nbf must be number"
+		 end
+
+		 if not alg_verify[header.alg] then
+			return nil, "Algorithm not supported"
+		 end
+
+		 if not alg_verify[header.alg](headerb64 .. "." .. bodyb64, sig, keystr) then
+			return nil, "Invalid signature"
+		 end
+
+		 if body.exp and os.time() >= body.exp then
+			return nil, "Not acceptable by exp"
+		 end
+
+		 if body.nbf and os.time() < body.nbf then
+			return nil, "Not acceptable by nbf"
+		 end
+	  end
+
+	  return body
+   end -- end decode
+
+   return {
+	  decode = decode,
+	  encode = encode,
+	  parse = parse
+   }
+end -- end new
 
 return {
-   decode = decode,
-   encode = encode,
-   parse = parse
+   new = new
 }

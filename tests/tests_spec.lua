@@ -1,13 +1,13 @@
 -- require 'busted.runner'()
 
-local pkey    = require "openssl.pkey"
-local x509    = require "openssl.x509"
-local name    = require "openssl.x509.name"
-local altname = require "openssl.x509.altname"
-local x509    = require "openssl.x509"
-local jwt     = require "luajwtossl"
-local base64  = require "base64"
-local utl     = require "luajwtossl.utils"
+local pkey       = require "openssl.pkey"
+local x509       = require "openssl.x509"
+local name       = require "openssl.x509.name"
+local altname    = require "openssl.x509.altname"
+local x509       = require "openssl.x509"
+local luajwtossl = require "luajwtossl"
+local base64     = require "base64"
+local utl        = require "luajwtossl.utils"
 
 local log = print
 local standalone = true
@@ -83,6 +83,7 @@ local claim = {
 -- test for unencrypted tokens
 local function ptest_none_jwt(extra)
    local alg = 'none'
+   local jwt = luajwtossl.new { allow_algs={ ['none']=true } }
    log("alg=".. tostring(alg))
    local token, err = jwt.encode(claim, nil, alg, extra)
    log("Token:", token)
@@ -100,6 +101,7 @@ end
 -- test for HMAC digest based tokens
 local function ptest_hmac_jwt(alg, extra)
    log("alg=".. tostring(alg))
+   local jwt = luajwtossl.new { allow_algs={ [alg]=true } }
    local token, err = jwt.encode(claim, hmac_key, alg, extra)
    log("Token:", token)
    assert(token, err)
@@ -165,6 +167,7 @@ end
 
 local function ptest_rsa_jwt(alg, extra)
    log("alg=".. tostring(alg))
+   local jwt = luajwtossl.new { allow_algs={ [alg]=true } }
    assert(rsa_cert)
    assert(rsa_priv_key)
    assert(rsa_pub_key)
@@ -236,8 +239,6 @@ if (standalone) then
    end
 end
 
-
-
 describe("test JWT encoding/decoding",
 		 function()
 			it("test unencrypted jwt", function()
@@ -254,6 +255,24 @@ describe("test JWT encoding/decoding",
 				  for  _,alg in ipairs{ 'RS256', 'RS384', 'RS512' } do
 					 token = assert(ptest_rsa_jwt(alg))
 				  end
+			end)
+end)
+
+describe("test JWT attack mitigation",
+		 function()
+			it("test mitigation on RSA decode", function()
+				  local alg = "HS256"
+				  local jwt = luajwtossl.new()
+				  local token, err = jwt.encode(claim, rsa_pub_key, "HS256")
+				  assert(token, err)
+				  assert(err == nil)
+
+				  local jw2 = luajwtossl.new { allow_algs={ ["^RS256$"]=true }}
+				  local validate = true
+				  log("attack - pass JWT HMAC - signed with RSA public key")
+				  local decoded, err = jwt.decode(token, rsa_pub_key, validate)
+				  assert(not decoded, "must have failed for wrong encryption type")
+				  assert(string.find(err,"Algorithm not allowed"))
 			end)
 end)
 

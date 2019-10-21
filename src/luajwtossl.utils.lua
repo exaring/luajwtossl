@@ -35,6 +35,15 @@ local function extract_pubkey(str)
    return pubkey
 end
 
+local function chartohex (x) 
+   return string.format("%02x", string.byte(x,1,1))
+end
+
+local function tohex(data)
+   return string.gsub(data,"(.)", chartohex)
+end
+
+
 local function mkdigest(data, alg)
    local md  = digest.new(alg)
    assert(md, "failed to create " .. alg .. " message digest")
@@ -95,6 +104,8 @@ return {
    extract_x509_cert = extract_x509_cert,
    mkdigest = mkdigest,
    mkosslobj = mkosslobj,
+   tohex = tohex,
    tokenize = tokenize
+   
 }
 

@@ -74,7 +74,7 @@ local function mk_cert_hash_fun(digest_alg)
 	  local der = utl.cert_to_der(extra.certs[1]);
 	  if der then
 		 local md = utl.mkdigest(der, digest_alg)
-		 return utl.b64urlencode(md:final())
+		 return utl.b64urlencode(utl.tohex(md:final()))
 	  else
 		 return nil
 	  end

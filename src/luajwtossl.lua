@@ -168,7 +168,7 @@ local function new(config)
 		 end
 	  elseif type(allow_algs) == 'string' then
 		 is_alg_allowed = function(alg)
-			return string.match(alg, allow_args)
+			return string.match(alg, allow_algs)
 		 end
 	  end
    end

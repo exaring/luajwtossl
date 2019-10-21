@@ -101,7 +101,7 @@ end
 -- test for HMAC digest based tokens
 local function ptest_hmac_jwt(alg, extra)
    log("alg=".. tostring(alg))
-   local jwt = luajwtossl.new { allow_algs={ [alg]=true } }
+   local jwt = luajwtossl.new { allow_algs="^"..alg.."$" }
    local token, err = jwt.encode(claim, hmac_key, alg, extra)
    log("Token:", token)
    assert(token, err)
@@ -267,7 +267,7 @@ describe("test JWT attack mitigation",
 				  assert(token, err)
 				  assert(err == nil)
 
-				  local jw2 = luajwtossl.new { allow_algs={ ["^RS256$"]=true }}
+				  local jw2 = luajwtossl.new { allow_algs="^RS256$" }
 				  local validate = true
 				  log("attack - pass JWT HMAC - signed with RSA public key")
 				  local decoded, err = jwt.decode(token, rsa_pub_key, validate)

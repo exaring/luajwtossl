@@ -126,9 +126,35 @@ local function mkheader(extra, alg)
    return header
 end
 
-local M = {}
+local function get_keystr(alg, header, key)
+   if type(key) == "string" then
+	  return key, nil
+   end
+   if type(key) == "function" then
+	  local is_ok, keystr, err =	 pcall(function() return key(alg, header) end)
+	  if is_ok then
+		 if keystr then
+			if type(keystr)=='string' then
+			   return keystr, nil
+			else
+			   return nil, "Key fetch function returned invalid key of type "..type(keystr)
+			end
+		 else
+			return nil, "Key fetch function returned error: "..tostring(err)
+		 end
+	  else
+		 return nil, "Key fetch function failed: "..tostring(keystr)
+	  end
+   end
+   if alg == 'none' then
+	  return "",nil
+   end
+   return nil, "Invalid key argument, must be string or function"
+end
 
-function M.encode(data, key, alg, extra)
+-- the following functions are exported
+
+local function encode(data, key, alg, extra)
    alg = alg or "HS256" 
    if type(data) ~= 'table' then return nil, "Argument #1 must be table" end
    if alg ~= 'none' and type(key) ~= 'string' then return nil, "Argument #2 must be string" end
@@ -158,52 +184,41 @@ function M.encode(data, key, alg, extra)
    return table.concat(segments, ".")
 end
 
-function get_keystr(alg, header, key)
-   if type(key) == "string" then
-	  return key, nil
+-- Parse JWT token
+-- @param  JWT token - in case of failure the parts that has been
+--                     successfully parsed get returned anyway
+-- @return err - error message, nil on success
+--         header body signature - decoded from base64
+--         h64    b64  sig64     - those not decoded decoded
+local function parse(data)
+   local parts = utl.tokenize(data, '.', 3)
+   local headerb64, bodyb64, sigb64 = parts[1], parts[2], parts[3]
+   local err, ok, header, body, sig
+   
+   if #parts == 3 then
+		 ok, header, body, sig = pcall(function ()
+			   return cjson.decode(utl.b64urldecode(headerb64)), 
+			   cjson.decode(utl.b64urldecode(bodyb64)),
+			   utl.b64urldecode(sigb64)
+		 end)
+		 if not ok then
+			err = "invalid json"
+		 end		 
+   else
+	  err = "token must contain three parts"
    end
-   if type(key) == "function" then
-	  local is_ok, keystr, err =	 pcall(function() return key(alg, header) end)
-	  if is_ok then
-		 if keystr then
-			if type(keystr)=='string' then
-			   return keystr, nil
-			else
-			   return nil, "Key fetch function returned invalid key of type "..type(keystr)
-			end
-		 else
-			return nil, "Key fetch function returned error: "..tostring(err)
-		 end
-	  else
-		 return nil, "Key fetch function failed: "..tostring(keystr)
-	  end
-   end
-   if alg == 'none' then
-	  return "",nil
-   end
-   return nil, "Invalid key argument, must be string or function"
-end
+   
+   return err,  header, body, sig,  headerb64, bodyb64, sigb64
+end   
+   
 
-function M.decode(data, key, verify)
+function decode(data, key, verify)
    if key and verify == nil then verify = true end
    if type(data) ~= 'string' then return nil, "Argument #1 must be string" end
 
-   local token = utl.tokenize(data, '.', 3)
-
-   if #token ~= 3 then
-      return nil, "Invalid token"
-   end
-
-   local headerb64, bodyb64, sigb64 = token[1], token[2], token[3]
-
-   local ok, header, body, sig = pcall(function ()
-         return cjson.decode(utl.b64urldecode(headerb64)), 
-         cjson.decode(utl.b64urldecode(bodyb64)),
-         utl.b64urldecode(sigb64)
-   end) 
-
-   if not ok then
-      return nil, "Invalid json"
+   local err, header, body, sig, headerb64, bodyb64, sigb64 = parse(data)
+   if err then
+      return nil, "JWT token parse error: " .. err
    end
 
    if verify then
@@ -249,4 +264,8 @@ function M.decode(data, key, verify)
    return body
 end
 
-return M
+return {
+   decode = decode,
+   encode = encode,
+   parse = parse
+}

@@ -14,6 +14,7 @@ before_install:
   - pip install hererocks
   - hererocks lua_install -r3 --$LUA
   - export PATH=$PATH:$PWD/lua_install/bin
+  - luarocks install luacov
 
 
 install:

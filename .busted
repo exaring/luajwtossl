@@ -4,7 +4,7 @@ return {
   },
   default = {
 	 verbose = true,
-	 coverage = false,
+	 coverage = true,
 	 ROOT = {"tests/tests_spec.lua"},
   }
 }

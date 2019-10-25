@@ -293,13 +293,17 @@ describe("test JWT header fields handling/generation in encoder",
 				  assert(header.x5t == "fooo")
 			end)
 			it("test x5t computation", function()
-				  local extra = { header = {typ = "JWT", bar="baz", alg="junk", x5t="" },
+				  local extra = { header = {typ = "JWT", bar="baz", alg="junk", x5t="" , ['x5t#S256'] = "" , x5c = ""},
 								  certs = { rsa_cert } }
 				  token = assert(ptest_rsa_jwt("RS256", extra))
 				  header = get_header(token)
 				  assert(header.bar == "baz")
 				  assert(header.x5t)
 				  assert(header.x5t ~= "")
+				  assert(header['x5t#S256'])
+				  assert(header['x5t#S256'] ~= "")
+				  assert(header['x5c'])
+				  assert(header['x5c'] ~= "")
 			end)
 end)
 

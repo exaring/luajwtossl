@@ -239,6 +239,17 @@ if (standalone) then
    end
 end
 
+describe("test Utilities methods", function()
+			it("tohex", function()
+				  local data = "ABCD";
+				  local hex = utl.tohex(data)
+				  assert(hex == "41424344")
+			end)
+end)
+
+
+
+
 describe("test JWT encoding/decoding",
 		 function()
 			it("test unencrypted jwt", function()

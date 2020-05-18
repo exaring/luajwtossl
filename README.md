@@ -9,7 +9,7 @@ This is a pre alpha development version, please do not try to use it in producti
 contains an unmitigated security vulnerability.
 
 ```bash
-$ sudo luarocks install https://github.com/exaring/luajwtossl/blob/master/luajwtossl-scm-1.rockspec
+$ sudo luarocks install https://raw.githubusercontent.com/exaring/luajwtossl/master/luajwtossl-scm-1.rockspec
 ```
 ## Master branch build status: ![build status](https://travis-ci.org/exaring/luajwtossl.svg?branch=master)
 

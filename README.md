@@ -3,7 +3,6 @@ luajwtossl
 
 JSON Web Tokens for Lua
 
-
 ## Important notice
 
 This is a pre alpha development version, please do not try to use it in production!!! Specifically, it 
@@ -12,14 +11,16 @@ contains an unmitigated security vulnerability.
 ```bash
 $ sudo luarocks install --server=http://rocks.moonscript.org luajwtossl
 ```
-## Master branch build status: ![build status](https://travis-ci.org/dudinea/luajwtossl.svg?branch=master)
+## Master branch build status: ![build status](https://travis-ci.org/exaring/luajwtossl.svg?branch=master)
 
 ## Usage
 
 Basic usage:
 
 ```lua
-local jwt = require "luajwtossl"
+local luajwtossl = require "luajwtossl"
+
+local jwt = luajwtossl.new { allow_algs={ ['HS256']=true } }
 
 local key = "example_key"
 
@@ -54,8 +55,8 @@ An openresty/nginx lua jwt auth example:
 # nginx.conf
 location /auth {
 	content_by_lua '
-		local jwt = require "luajwtossl"
-
+		local luajwtossl = require "luajwtossl"
+		local jwt = luajwtossl.new { allow_algs={ ['HS256']=true } }
 		local args = ngx.req.get_uri_args(1)
 
 		if not args.jwt then
@@ -90,6 +91,12 @@ $ curl your.server/auth?jwt=TOKEN
 * HS256	- HMAC using SHA-256 hash algorithm (default)
 * HS384	- HMAC using SHA-384 hash algorithm
 * HS512 - HMAC using SHA-512 hash algorithm
+
+**RSA**
+
+* RS256
+* RS384
+* RS512
 
 ## License
 MIT
